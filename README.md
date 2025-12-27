@@ -75,7 +75,4 @@ Only the exported workflow JSON is required to run this project.
 
 ---
 
-## 📄 License
-
-MIT License
 
