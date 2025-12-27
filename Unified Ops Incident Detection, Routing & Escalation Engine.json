@@ -1,0 +1,973 @@
+{
+  "name": "Unified Ops Incident Detection, Routing & Escalation Engine (Advanced)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-event",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "b6bbbcc6-9ff8-4817-844c-89b6e144af12",
+      "name": "Order Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1312,
+        128
+      ],
+      "webhookId": "10f3e43a-00f3-4592-94d9-5c94bbe1996f"
+    },
+    {
+      "parameters": {},
+      "id": "36f30523-031c-4230-9146-5857f9591300",
+      "name": "SLA Cron Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        464
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "id": "5def39e4-981f-46a1-a07e-ee6ea8cc5015",
+      "name": "Manual Reset Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        752
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "4189aa3a-d7cf-4299-b2b3-bfad66e63881",
+      "name": "Validate Order Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -912,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const pincode = $json.pincode;\n\nlet address_risk = \"LOW\";\n\nif (!pincode) {\n  address_risk = \"UNKNOWN\";\n} else if ([\"560001\"].includes(pincode)) {\n  address_risk = \"LOW\";\n} else {\n  address_risk = \"HIGH\";\n}\n\nreturn [{\n  ...$json,\n  address_risk\n}];\n"
+      },
+      "id": "dcfd78af-ce68-4b97-a303-b112d8798b48",
+      "name": "Address Risk Engine",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "for (const item of items) {\n  const paymentMethod = item.json.body.payment_method;\n  const orderValue = item.json.body.order_value;\n\n  if (paymentMethod === \"COD\" && orderValue > 1000) {\n    item.json.payment_risk = \"HIGH\";\n  } else if (paymentMethod === \"COD\") {\n    item.json.payment_risk = \"MEDIUM\";\n  } else {\n    item.json.payment_risk = \"LOW\";\n  }\n}\n\nreturn items;\n"
+      },
+      "id": "b6d4ec52-6352-4329-8040-f7575b428821",
+      "name": "Payment Anomaly Engine",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "for (const item of items) {\n  const slaHours = item.json.body.delivery_sla_hours;\n\n  if (slaHours <= 24) {\n    item.json.sla_risk = \"LOW\";\n  } else if (slaHours <= 48) {\n    item.json.sla_risk = \"MEDIUM\";\n  } else {\n    item.json.sla_risk = \"HIGH\";\n  }\n}\n\nreturn items;\n"
+      },
+      "id": "2b578597-6df3-413b-bc94-bde2c35353fc",
+      "name": "SLA Prediction Engine",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "for (const item of items) {\n  const paymentMethod = item.json.body.payment_method;\n  const orderValue = item.json.body.order_value;\n\n  if (paymentMethod === \"COD\" && orderValue > 1000) {\n    item.json.fraud_risk = \"HIGH\";\n  } else if (paymentMethod === \"COD\") {\n    item.json.fraud_risk = \"MEDIUM\";\n  } else {\n    item.json.fraud_risk = \"LOW\";\n  }\n}\n\nreturn items;\n"
+      },
+      "id": "b3009360-7fe2-4e74-a0ca-38b6e49a070d",
+      "name": "RTO / Fraud Risk Engine",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        272
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "17d87c40-fa0f-4b7d-aabd-5a20ec2c010f",
+      "name": "Merge Risk Engines",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [
+        608,
+        -496
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "functionCode": "for (const item of items) {\n  const risks = [\n    item.json.address_risk,\n    item.json.payment_risk,\n    item.json.sla_risk,\n    item.json.fraud_risk,\n  ];\n\n  if (risks.includes(\"HIGH\")) {\n    item.json.exception_type = \"CRITICAL\";\n    item.json.exception_severity = \"HIGH\";\n  } else if (risks.includes(\"MEDIUM\")) {\n    item.json.exception_type = \"WARNING\";\n    item.json.exception_severity = \"MEDIUM\";\n  } else {\n    item.json.exception_type = \"NORMAL\";\n    item.json.exception_severity = \"LOW\";\n  }\n}\n\nreturn items;\n"
+      },
+      "id": "c2c2e2a9-b1a6-472d-b866-6dbde15ef918",
+      "name": "Classify Exceptions",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "append",
+        "sheetId": "1Qb34GhyGwUTWx19xbpg42HNxorFTVRUeuv_OAUWaNCQ",
+        "range": "State",
+        "keyRow": null,
+        "options": {
+          "usePathForKeyRow": true,
+          "valueInputMode": "USER_ENTERED"
+        }
+      },
+      "id": "097af438-c358-4341-b142-78785f387e7a",
+      "name": "Insert Into State Table",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [
+        544,
+        -176
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "m0E5PMtenJ0qowhZ",
+          "name": "Google Sheets account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "channel": "#ops-alerts",
+        "text": "=🚨 FINANCE ALERT Order ID: {{$json.order_id}} Payment Risk: {{$json.payment_risk}} Severity: {{$json.exception_severity}} Assigned Team: {{$json.assigned_team}}",
+        "otherOptions": {},
+        "attachments": []
+      },
+      "id": "2331de23-a98c-4a81-aebe-f45d9e5e6c7e",
+      "name": "Finance Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        -128
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "PXIgDJMQbFB7wnqZ",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#ops-alerts",
+        "text": "=Incident detected for order {$json.order_id}. Exceptions: {$json.exceptions}",
+        "otherOptions": {},
+        "attachments": []
+      },
+      "id": "b700f6f9-295b-4689-ad68-d838342c509f",
+      "name": "Address Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        128
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "PXIgDJMQbFB7wnqZ",
+          "name": "Slack account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "channel": "#ops-alerts",
+        "text": "=Incident detected for order {$json.order_id}. Exceptions: {$json.exceptions}",
+        "otherOptions": {},
+        "attachments": []
+      },
+      "id": "bfd47eb6-c3de-47ad-ac56-e0e3b9bd7d5e",
+      "name": "SLA Risk Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        384
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "PXIgDJMQbFB7wnqZ",
+          "name": "Slack account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "channel": "#ops-alerts",
+        "text": "=Incident detected for order {$json.order_id}. Exceptions: {$json.exceptions}",
+        "otherOptions": {},
+        "attachments": []
+      },
+      "id": "71a216ac-6bd2-4884-a7bc-2f0b23bcd1ae",
+      "name": "Fraud Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        672
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "PXIgDJMQbFB7wnqZ",
+          "name": "Slack account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "id": "6020e5b6-beb7-4eac-abbe-a2bc616125b0",
+      "name": "Timer Wait (5 mins)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        208
+      ],
+      "webhookId": "a8d37cc3-28e5-4e9a-b249-7713fd80ae20",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "lookup",
+        "sheetId": "REPLACE_SHEET_ID",
+        "range": "State!A1:E1000",
+        "lookupColumn": "A",
+        "lookupValue": "={{$json.order_id}}",
+        "options": {}
+      },
+      "id": "6025351f-df00-4725-97b9-cf948fa6d9d9",
+      "name": "Fetch State Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [
+        1808,
+        208
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.status}}",
+              "value2": "open"
+            }
+          ]
+        }
+      },
+      "id": "1ca12889-ed81-4795-8a35-da9a2d41d853",
+      "name": "Check Resolution Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2112,
+        208
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "toEmail": "teamlead@example.com",
+        "subject": "Escalation Level 2 – Order {{$json.order_id}}",
+        "text": "Incident unresolved. Exceptions: {{$json.exceptions}}",
+        "options": {}
+      },
+      "id": "ec0d71d2-dcec-4069-9848-928527cc068d",
+      "name": "Escalation Email L2",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        128
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "toEmail": "manager@example.com",
+        "subject": "Escalation Level 3 – Critical Order {{$json.order_id}}",
+        "text": "Critical incident unresolved: {{$json.exceptions}}",
+        "options": {}
+      },
+      "id": "1358cc0b-1a00-46ac-90f0-2532d9ed8657",
+      "name": "Escalation Email L3",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        304
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-update",
+        "options": {}
+      },
+      "id": "73665198-5ec1-4168-8f1f-b701d7e2c03e",
+      "name": "Order Update Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        960
+      ],
+      "webhookId": "dae8e1bf-60b6-40d1-a2ee-63b90fc6dfd3",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "sheetId": "REPLACE_SHEET_ID",
+        "range": "State!A1:E1000",
+        "key": "A",
+        "options": {}
+      },
+      "id": "60f1dedc-ce6e-453e-998a-c5af5ae102e0",
+      "name": "Update State Table to Resolved",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [
+        0,
+        960
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "channel": "ops-resolution",
+        "text": "Order {{$json.order_id}} has been resolved and closed.",
+        "otherOptions": {},
+        "attachments": []
+      },
+      "id": "a1cb0979-e8c0-4809-a073-3c949d1e83d8",
+      "name": "Send Resolution Notice",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        304,
+        960
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "PXIgDJMQbFB7wnqZ",
+          "name": "Slack account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "id": "74f5254a-c888-40ee-8be8-1061ee489e63",
+      "name": "Daily Cron",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        1264
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "sheetId": "REPLACE_SHEET_ID",
+        "range": "State!A1:E1000",
+        "options": {}
+      },
+      "id": "7852e1bb-098c-4f38-badd-98b58d3fbf2f",
+      "name": "Fetch All Open Issues",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        1264
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "id": "f5e6979b-62af-4004-9b59-c84dc1721457",
+      "name": "Filter Open Only",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1264
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "toEmail": "ops@example.com",
+        "subject": "Daily Ops Report",
+        "text": "Open issues summary: {{$json}}",
+        "options": {}
+      },
+      "id": "f3203024-4b74-41cf-bddc-11a9537de99f",
+      "name": "Send Daily Summary Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        304,
+        1264
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9f21c97e-90bf-432a-93de-2b853e19cd7b",
+              "name": "order_id",
+              "value": "TEST_001",
+              "type": "string"
+            },
+            {
+              "id": "5a099642-8c06-4e38-85d0-e77c4a56c1e6",
+              "name": "priority",
+              "value": "normal",
+              "type": "string"
+            },
+            {
+              "id": "0b1aef56-afcd-4623-811c-99a0bda2bf5e",
+              "name": "exceptions",
+              "value": "manual_test",
+              "type": "string"
+            },
+            {
+              "id": "832adaee-3e5a-4500-8782-dd41e2740286",
+              "name": "status",
+              "value": "open",
+              "type": "string"
+            },
+            {
+              "id": "887ce2c2-9f62-4821-8047-3ffc778d3b6c",
+              "name": "timestamp",
+              "value": "=={{$now}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -400,
+        752
+      ],
+      "id": "b73fc810-9a28-4d00-9010-756a6b96af77",
+      "name": "Edit Fields",
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "id": "c66394cc-cbd2-4f1c-b6d2-ca045853d44a",
+      "name": "Merge Risk Engines1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [
+        384,
+        -656
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "id": "31a1f445-7fef-4226-b8f1-95d3e27e0843",
+      "name": "Merge Risk Engines2",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [
+        416,
+        -400
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\n\nlet assigned_team = \"OPS\";\n\nif ($json.payment_risk === \"HIGH\") {\n  assigned_team = \"FINANCE\";\n} else if ($json.address_risk === \"HIGH\") {\n  assigned_team = \"ADDRESS\";\n} else if ($json.sla_risk === \"HIGH\") {\n  assigned_team = \"SLA\";\n} else if ($json.fraud_risk === \"HIGH\") {\n  assigned_team = \"FRAUD\";\n}\n\nconst slaHours = 2;\nconst slaDeadline = new Date(now.getTime() + slaHours * 60 * 60 * 1000);\n\nreturn [{\n  // 👇 ONLY business fields\n  order_id: $json.body.order_id,\n  customer_id: $json.body.customer_id,\n  payment_method: $json.body.payment_method,\n  order_value: $json.body.order_value,\n\n  pincode: $json.body.address?.pincode,\n  city: $json.body.address?.city,\n  state: $json.body.address?.state,\n\n  address_risk: $json.address_risk,\n  payment_risk: $json.payment_risk,\n  sla_risk: $json.sla_risk,\n  fraud_risk: $json.fraud_risk,\n\n  exception_type: $json.exception_type,\n  exception_severity: $json.exception_severity,\n\n  assigned_team,\n  status: \"OPEN\",\n  created_at: now.toISOString(),\n  sla_deadline: slaDeadline.toISOString()\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        160
+      ],
+      "id": "2f7cc521-aef2-4905-a08a-37ca589b3b4c",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.payment_risk }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "HIGH"
+            }
+          ]
+        }
+      },
+      "id": "97eb2923-5930-4ee7-9664-f4fcd60c7bc4",
+      "name": "Payment Risk Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        864,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.address_risk }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "LOW"
+            }
+          ]
+        }
+      },
+      "id": "d3d1d0b7-5c6a-463b-bc74-4f4b8b428033",
+      "name": "Address Risk Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        864,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.sla_risk }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "LOW"
+            }
+          ]
+        }
+      },
+      "id": "cec5f16c-7206-44e6-9609-d2dae2757b2b",
+      "name": "SLA Risk Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        864,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.fraud_risk }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "HIGH"
+            }
+          ]
+        }
+      },
+      "id": "839b8ec8-ecb6-4a09-97a7-4d734772c563",
+      "name": "Fraud Risk Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        864,
+        640
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Order Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Order Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Order Payload": {
+      "main": [
+        [
+          {
+            "node": "Address Risk Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Address Risk Engine": {
+      "main": [
+        [
+          {
+            "node": "Payment Anomaly Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment Anomaly Engine": {
+      "main": [
+        [
+          {
+            "node": "SLA Prediction Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SLA Prediction Engine": {
+      "main": [
+        [
+          {
+            "node": "RTO / Fraud Risk Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RTO / Fraud Risk Engine": {
+      "main": [
+        [
+          {
+            "node": "Classify Exceptions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Risk Engines": {
+      "main": [
+        []
+      ]
+    },
+    "Classify Exceptions": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finance Slack Alert": {
+      "main": [
+        [
+          {
+            "node": "Timer Wait (5 mins)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Address Slack Alert": {
+      "main": [
+        [
+          {
+            "node": "Timer Wait (5 mins)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SLA Risk Slack Alert": {
+      "main": [
+        [
+          {
+            "node": "Timer Wait (5 mins)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fraud Slack Alert": {
+      "main": [
+        [
+          {
+            "node": "Timer Wait (5 mins)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timer Wait (5 mins)": {
+      "main": [
+        [
+          {
+            "node": "Fetch State Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch State Row": {
+      "main": [
+        [
+          {
+            "node": "Check Resolution Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Resolution Status": {
+      "main": [
+        [
+          {
+            "node": "Escalation Email L2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Escalation Email L3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Order Update Webhook": {
+      "main": [
+        [
+          {
+            "node": "Update State Table to Resolved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update State Table to Resolved": {
+      "main": [
+        [
+          {
+            "node": "Send Resolution Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Cron": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Open Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Open Issues": {
+      "main": [
+        [
+          {
+            "node": "Filter Open Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Open Only": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Reset Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        []
+      ]
+    },
+    "Merge Risk Engines1": {
+      "main": [
+        [
+          {
+            "node": "Merge Risk Engines",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Risk Engines2": {
+      "main": [
+        [
+          {
+            "node": "Merge Risk Engines",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Insert Into State Table",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Payment Risk Switch",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Address Risk Switch",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SLA Risk Switch",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fraud Risk Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment Risk Switch": {
+      "main": [
+        [
+          {
+            "node": "Finance Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [],
+        []
+      ]
+    },
+    "Address Risk Switch": {
+      "main": [
+        [
+          {
+            "node": "Address Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "SLA Risk Switch": {
+      "main": [
+        [
+          {
+            "node": "SLA Risk Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fraud Risk Switch": {
+      "main": [
+        [
+          {
+            "node": "Fraud Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4f61912c-6b35-4cf8-9f88-7c534931c1c9",
+  "meta": {
+    "instanceId": "9dd7ea433f75121ed04b3577c0201c792bde1cbbf66968ce7cd13aac0a1285e2"
+  },
+  "id": "7SvYUskxI8wipBXF",
+  "tags": []
+}
