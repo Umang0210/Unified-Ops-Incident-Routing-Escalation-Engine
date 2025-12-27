@@ -52,3 +52,30 @@ The workflow processes incoming events and performs the following steps:
 
 ## 📂 Repository Structure
 
+Only the exported workflow JSON is required to run this project.
+
+---
+
+## ⚙️ How to Use
+
+1. Open your **n8n instance**
+2. Click **Import Workflow**
+3. Upload the file:
+
+4. Configure credentials (Slack, Email, Google Sheets)
+5. Activate the workflow
+
+---
+
+## 📌 Notes
+
+- Designed for operational monitoring and incident response use cases  
+- Easily extensible for SRE, support ops, or fraud detection workflows  
+- Can be integrated with ticketing tools or databases if required  
+
+---
+
+## 📄 License
+
+MIT License
+
